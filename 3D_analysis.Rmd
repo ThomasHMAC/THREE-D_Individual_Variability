@@ -1,0 +1,1251 @@
+---
+title: "3D_analysis"
+output: html_document
+date: '2023-02-01'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ggpubr)
+library(tidyverse)
+library(rdist)
+library(corrplot)
+library(dplyr)
+library(knitr)
+library(car)
+library(tableone)
+library(lmerTest)
+library(emmeans)
+library(table1)
+library(sjstats)
+library(effsize) 
+library(gvlma)
+library(haven)
+library(ggthemes)
+library(sjPlot)
+library(sandwich)
+library(lmtest)
+library(estimatr)
+library(splines)
+#library(equatiomatic)
+#library(lme4)       
+#library(nlme)       
+#library(ggResidpanel)
+library(rstatix)
+library(readxl)
+library(ggpubr)
+library(flextable)
+library(magrittr)
+library(effectsize)
+options(es.use_symbols = TRUE)
+```
+
+# Calculate MCD for HC 
+```{r}
+library(dplyr)
+
+#Loop through ROI
+list_of_ROI <- c("LDLPFC","R_sgACC","insula","precuneus")
+
+    
+# LDLPFC connectivity 
+THREED_HC_LDLPFC_rsfc_files <- list.files(path = "/mnt/tigrlab/projects/ttan/ThirtyFourD/analysis/LDLPFC_connectivity/3D_controls", recursive = TRUE,
+                            pattern = ".*ses-pretx.*\\.txt$",
+                            full.names = TRUE)
+# RsgACC connectivity
+THREED_HC_RsgACC_rsfc_files <- list.files(path = "/mnt/tigrlab/projects/ttan/ThirtyFourD/analysis/R_sgACC_connectivity/3D_controls", recursive = TRUE,
+                            pattern = ".*ses-pretx.*\\.txt$",
+                            full.names = TRUE)
+
+# Bilateral Insula connectivity
+THREED_HC_LR_insula_rsfc_files <- list.files(path = "/projects/ttan/ThirtyFourD/analysis/insular_connectivity",recursive = TRUE,
+                                            pattern = ".*HC.*ses-pretx.*\\.txt$",
+                                            full.names = TRUE)
+
+# Bilateral Precuneus connectivity
+
+THREED_HC_LR_precuneus_rsfc_files <- list.files(path = "/projects/ttan/ThirtyFourD/analysis/precuneus_connectivity",recursive = TRUE,
+                                            pattern = ".*HC.*ses-pretx.*\\.txt$",
+                                            full.names = TRUE)
+
+# Extract all the left and right vertices (59412)
+HC_list_df <- lapply(THREED_HC_LDLPFC_rsfc_files, function(x) {x = read.table(file = x, header = FALSE, sep =",", nrows = 59412)})
+HC_list_df <- lapply(THREED_HC_RsgACC_rsfc_files, function(x) {x = read.table(file = x, header = FALSE, sep =",", nrows = 59412)})
+HC_list_df <- lapply(THREED_HC_LR_insula_rsfc_files, function(x) {x = read.table(file = x, header = FALSE, sep =",", nrows = 59412)})
+HC_list_df <- lapply(THREED_HC_LR_precuneus_rsfc_files, function(x) {x = read.table(file = x, header = FALSE, sep =",", nrows = 59412)})
+#combie text files into a dataframe
+combined_df <- do.call("cbind", lapply(HC_list_df, as.data.frame))
+#participants (rows) by 59,412 vertex (columns)
+df.final <- as.data.frame(t(combined_df))
+
+#pairwise distance measure 0 to 1, 0 is less distance = more similar, 1 is more distance = less similar
+corr = rdist::pdist(df.final, metric = "correlation")
+corr_new <- replace(corr[,],corr[,] == 0, NA)
+rm(combined_df,corr)
+
+# Calculate the mean distance by row
+mean_corr_distance_df <- data.frame('',Meandist=rowMeans(corr_new,na.rm=TRUE))
+# Write the output into dataframe
+for (i in 1:length(list_of_files)){
+  str_split <- strsplit(basename(list_of_files[i]),"_")
+  subid <- str_split[[1]][1]
+  mean_corr_distance_df$X..[i] <- subid
+}
+
+for (i in 1:length(THREED_HC_LDLPFC_rsfc_files)){
+  str_split <- strsplit(basename(THREED_HC_LDLPFC_rsfc_files[i]),"_")
+  subid <- str_split[[1]][1]
+  mean_corr_distance_df$X..[i] <- subid
+}
+
+for (i in 1:length(THREED_HC_RsgACC_rsfc_files)){
+  str_split <- strsplit(basename(THREED_HC_RsgACC_rsfc_files[i]),"_")
+  subid <- str_split[[1]][1]
+  mean_corr_distance_df$X..[i] <- subid
+}
+
+for (i in 1:length(THREED_HC_LR_insula_rsfc_files)){
+  str_split <- strsplit(basename(THREED_HC_LR_insula_rsfc_files[i]),"_")
+  subid <- str_split[[1]][1]
+  mean_corr_distance_df$X..[i] <- subid
+}
+
+for (i in 1:length(THREED_HC_LR_precuneus_rsfc_files)){
+  str_split <- strsplit(basename(THREED_HC_LR_precuneus_rsfc_files[i]),"_")
+  subid <- str_split[[1]][1]
+  mean_corr_distance_df$X..[i] <- subid
+}
+
+
+mean_corr_distance_df <- mean_corr_distance_df %>% rename('subid' = X.. , 'MCD' = Meandist)
+# Save output as csv files
+#write.csv(mean_corr_distance_df,"/projects/ttan/ThirtyFourD/analysis/3D_66HC_LDLPFC_MCD_pretx.csv",row.names = FALSE)
+#write.csv(mean_corr_distance_df,"/projects/ttan/ThirtyFourD/analysis/3D_66HC_RsgACC_MCD_pretx.csv",row.names = FALSE)
+#rite.csv(mean_corr_distance_df,"/projects/ttan/ThirtyFourD/analysis/3D_66HC_LR_insula_MCD_pretx.csv",row.names = FALSE)
+write.csv(mean_corr_distance_df,"/projects/ttan/ThirtyFourD/analysis/3D_66HC_LR_precuneus_MCD_pretx.csv",row.names = FALSE)
+#write.csv(mean_corr_distance_df,"D:/Thesis/3D/3D_70HC_L-insula_MCD_pretx.csv",row.names = FALSE)
+```
+
+# Calculate MCD 1-patient to 66 HC
+```{r}
+
+# Loop through LDLPFC
+THREED_HC_LDLPFC_rsfc_files <- list.files(path = "/mnt/tigrlab/projects/ttan/ThirtyFourD/analysis/LDLPFC_connectivity/3D_controls", recursive = TRUE,
+                            pattern = ".*ses-pretx.*\\.txt$",
+                            full.names = TRUE)
+
+# Extract all the left and right vertices (59412)
+HC_list_df <- lapply(THREED_HC_LDLPFC_rsfc_files, function(x) {x = read.table(file = x, header = FALSE, sep =",", nrows = 59412)})
+
+#combie text files into a dataframe
+combined_df <- do.call("cbind", lapply(HC_list_df, as.data.frame))
+#participants (rows) by 59,412 vertex (columns)
+df.final <- as.data.frame(t(combined_df))
+rm(combined_df,HC_list_df)
+THREED_patients_LDLPFC_rsfc_files <- list.files(path = "/mnt/tigrlab/projects/ttan/ThirtyFourD/analysis/LDLPFC_connectivity/",
+                            #pattern = "_LDLPFC.txt$",
+                            pattern = ".*ses-pretx.*\\.txt$",
+                            full.names = TRUE)
+THREED_patients_LDLPFC_rsfc_files <- list.files(path = "/mnt/tigrlab/projects/ttan/ThirtyFourD/analysis/LDLPFC_connectivity/",
+                            #pattern = "_LDLPFC.txt$",
+                            pattern = ".*ses-posttx.*\\.txt$",
+                            full.names = TRUE)
+
+
+#length(THREED_patients_LDLPFC_rsfc_files)
+columns = c("subid","MCD")
+new_df = data.frame(matrix(nrow=length(THREED_patients_LDLPFC_rsfc_files),ncol=length(columns)))
+colnames(new_df) = columns
+for (i in 1:length(THREED_patients_LDLPFC_rsfc_files)){
+  patient_list <- lapply(THREED_patients_LDLPFC_rsfc_files[i], function(x) {x = read.table(file = x, header = FALSE, sep =",", nrows = 59412)})
+  patient_df <- data.frame(patient_list)
+  patient_df_final <- as.data.frame(t(patient_df))
+  patient_66HC <- rbind(patient_df_final, df.final)
+  rownames(patient_66HC) <- NULL
+  corr = rdist::pdist(patient_66HC, metric = "correlation")
+  corr_new <- replace(corr[,],corr[,] == 0, NA)
+  mean_corr_distance_df <- data.frame('',Meandist=rowMeans(corr_new,na.rm=TRUE))
+  str_split <- strsplit(basename(THREED_patients_LDLPFC_rsfc_files[i]),"_")
+  subid <- str_split[[1]][1]
+  mean_corr_distance_df$X..[1] <- subid
+  new_df[i,] <- mean_corr_distance_df[1,]
+}
+#write.csv(new_df,"/projects/ttan/ThirtyFourD/analysis/3D_MDD_patient_LDLPFC_MCD_versus_66HC_pretx.csv",row.names = FALSE)
+write.csv(new_df,"/projects/ttan/ThirtyFourD/analysis/3D_MDD_patient_LDLPFC_MCD_versus_66HC_posttx.csv",row.names = FALSE)
+```
+
+```{r}
+# Loop through RsgACC
+THREED_HC_RsgACC_rsfc_files <- list.files(path = "/mnt/tigrlab/projects/ttan/ThirtyFourD/analysis/R_sgACC_connectivity/3D_controls", recursive = TRUE,
+                            pattern = ".*HC.*ses-pretx.*\\.txt$",
+                            full.names = TRUE)
+
+HC_list_df <- lapply(THREED_HC_RsgACC_rsfc_files, function(x) {x = read.table(file = x, header = FALSE, sep =",", nrows = 59412)})
+#combie text files into a dataframe
+combined_df <- do.call("cbind", lapply(HC_list_df, as.data.frame))
+#participants (rows) by 59,412 vertex (columns)
+df.final <- as.data.frame(t(combined_df))
+rm(combined_df,HC_list_df)
+#THREED_patients_RsgACC_rsfc_files <- list.files(path = "/mnt/tigrlab/projects/ttan/ThirtyFourD/analysis/R_sgACC_connectivity/",
+#                            pattern = ".*ses-pretx.*\\.txt$",
+#                            full.names = TRUE)
+THREED_patients_RsgACC_rsfc_files <- list.files(path = "/mnt/tigrlab/projects/ttan/ThirtyFourD/analysis/R_sgACC_connectivity/",
+                            pattern = ".*ses-posttx.*\\.txt$",
+                            full.names = TRUE)
+
+columns = c("subid","MCD")
+RsgACC_MCD_df = data.frame(matrix(nrow=length(THREED_patients_RsgACC_rsfc_files),ncol=length(columns)))
+colnames(RsgACC_MCD_df) = columns
+for (i in 1:length(THREED_patients_RsgACC_rsfc_files)){
+  patient_list <- lapply(THREED_patients_RsgACC_rsfc_files[i], function(x) {x = read.table(file = x, header = FALSE, sep =",", nrows = 59412)})
+  patient_df <- data.frame(patient_list)
+  patient_df_final <- as.data.frame(t(patient_df))
+  patient_66HC <- rbind(patient_df_final, df.final)
+  rownames(patient_66HC) <- NULL
+  corr = rdist::pdist(patient_66HC, metric = "correlation")
+  corr_new <- replace(corr[,],corr[,] == 0, NA)
+  mean_corr_distance_df <- data.frame('',Meandist=rowMeans(corr_new,na.rm=TRUE))
+  str_split <- strsplit(basename(THREED_patients_RsgACC_rsfc_files[i]),"_")
+  subid <- str_split[[1]][1]
+  print(subid)
+  mean_corr_distance_df$X..[1] <- subid
+  RsgACC_MCD_df[i,] <- mean_corr_distance_df[1,]
+}
+
+#write.csv(RsgACC_MCD_df,"/projects/ttan/ThirtyFourD/analysis/3D_MDD_patient_RsgACC_MCD_versus_66HC_pretx.csv",row.names = FALSE)
+write.csv(RsgACC_MCD_df,"/projects/ttan/ThirtyFourD/analysis/3D_MDD_patient_RsgACC_MCD_versus_66HC_posttx.csv",row.names = FALSE)
+```
+
+```{r Coloring the Distance Pairwise Matrix}
+install.packages("ggplot2")
+library("ggplot2")
+corrdf = as.data.frame(corr)
+ggp <- ggplot(corrdf, aes(X1, X2)) +
+  geom_tile(aes(fill=value))
+ggpmyColours <- colorRampPalette(c("darkblue", "springgreen"))
+bestie <-ggp + scale_fill_gradientn(limits= c(0.35, 0.65), colors=myColours(100)) + geom_rect(aes(xmin = 1, xmax = 155, ymin = 1, ymax = 155), colour = "black", fill = NA) + geom_rect(aes(xmin = 156, xmax = 348, ymin = 156, ymax =348), colour = "black", fill = NA)
+
+```
+# L & R insula pretx
+```{r}
+# Loop through L & R insula then write output
+list_of_ROI <- c("insula")
+for (i in 1:length(list_of_ROI)){
+    HC_pattern <- paste(".*HC.*ses-pretx.*",list_of_ROI[i],".*\\.txt$",sep="")
+    THREED_HC_insula_rsfc_files <- list.files(path = "/projects/ttan/ThirtyFourD/analysis/insular_connectivity",recursive = TRUE,
+                                            pattern = HC_pattern,
+                                            full.names = TRUE)
+    HC_list_df <- lapply(THREED_HC_insula_rsfc_files, function(x) {x = read.table(file = x, header = FALSE, sep =",", nrows = 59412)})
+    combined_df <- do.call("cbind", lapply(HC_list_df, as.data.frame))
+    df.final <- as.data.frame(t(combined_df))
+    rm(combined_df,HC_list_df)
+    patients_pattern <- paste("(.*UHN|CAMH).+.*ses-pretx.*", list_of_ROI[i],".*\\.txt",sep="")
+    THREED_patients_insula_rsfc_files <- list.files(path = "/projects/ttan/ThirtyFourD/analysis/insular_connectivity",
+                            pattern = patients_pattern,
+                            full.names = TRUE)
+    columns = c("subid","MCD")
+    insula_MCD_df = data.frame(matrix(nrow=length(THREED_patients_insula_rsfc_files),ncol=length(columns)))
+    colnames(insula_MCD_df) = columns
+    for (j in 1:length(THREED_patients_insula_rsfc_files)){
+        print(THREED_patients_insula_rsfc_files[j])
+        patient_list <- lapply(THREED_patients_insula_rsfc_files[j], function(x) {x = read.table(file = x, header = FALSE, sep =",", nrows = 59412)})
+        patient_df <- data.frame(patient_list)
+        patient_df_final <- as.data.frame(t(patient_df))
+        patient_66HC <- rbind(patient_df_final, df.final)
+        rownames(patient_66HC) <- NULL
+        corr = rdist::pdist(patient_66HC, metric = "correlation")
+        corr_new <- replace(corr[,],corr[,] == 0, NA)
+        mean_corr_distance_df <- data.frame('',Meandist=rowMeans(corr_new,na.rm=TRUE))
+        str_split <- strsplit(basename(THREED_patients_insula_rsfc_files[j]),"_")
+        subid <- str_split[[1]][1]
+        print(subid)
+        mean_corr_distance_df$X..[1] <- subid
+        insula_MCD_df[j,] <- mean_corr_distance_df[1,]
+    }
+    write.csv(insula_MCD_df,paste("/projects/ttan/ThirtyFourD/analysis/3D_MDD_patient_bilateral_",list_of_ROI[i],"_MCD_versus_66HC_pretx.csv",sep=""),row.names = FALSE)
+}
+```
+
+# L & R insula posttx 
+```{r}
+rm(list = ls())
+#list_of_ROI <- c("L", "R")
+list_of_ROI <- c("insula")
+for (i in 1:length(list_of_ROI)){
+    HC_pattern <- paste(".*HC.*ses-pretx.*",list_of_ROI[i],".*\\.txt$",sep="")
+    THREED_HC_insula_rsfc_files <- list.files(path = "/projects/ttan/ThirtyFourD/analysis/insular_connectivity",recursive = TRUE,
+                                            pattern = HC_pattern,
+                                            full.names = TRUE)
+    HC_list_df <- lapply(THREED_HC_insula_rsfc_files, function(x) {x = read.table(file = x, header = FALSE, sep =",", nrows = 59412)})
+    combined_df <- do.call("cbind", lapply(HC_list_df, as.data.frame))
+    df.final <- as.data.frame(t(combined_df))
+    rm(combined_df,HC_list_df)
+    patients_pattern <- paste("(.*UHN|CAMH).+.*ses-posttx.*", list_of_ROI[i],".*\\.txt",sep="")
+    THREED_patients_insula_rsfc_files <- list.files(path = "/projects/ttan/ThirtyFourD/analysis/insular_connectivity",
+                            pattern = patients_pattern,
+                            full.names = TRUE)
+    columns = c("subid","MCD")
+    insula_MCD_df = data.frame(matrix(nrow=length(THREED_patients_insula_rsfc_files),ncol=length(columns)))
+    colnames(insula_MCD_df) = columns
+    for (j in 1:length(THREED_patients_insula_rsfc_files)){
+        patient_list <- lapply(THREED_patients_insula_rsfc_files[j], function(x) {x = read.table(file = x, header = FALSE, sep =",", nrows = 59412)})
+        patient_df <- data.frame(patient_list)
+        patient_df_final <- as.data.frame(t(patient_df))
+        patient_66HC <- rbind(patient_df_final, df.final)
+        rownames(patient_66HC) <- NULL
+        corr = rdist::pdist(patient_66HC, metric = "correlation")
+        corr_new <- replace(corr[,],corr[,] == 0, NA)
+        mean_corr_distance_df <- data.frame('',Meandist=rowMeans(corr_new,na.rm=TRUE))
+        str_split <- strsplit(basename(THREED_patients_insula_rsfc_files[j]),"_")
+        subid <- str_split[[1]][1]
+        print(subid)
+        mean_corr_distance_df$X..[1] <- subid
+        insula_MCD_df[j,] <- mean_corr_distance_df[1,]
+    }
+    write.csv(insula_MCD_df,paste("/projects/ttan/ThirtyFourD/analysis/3D_MDD_patient_bilateral_",list_of_ROI[i],"_MCD_versus_66HC_posttx.csv",sep=""),row.names = FALSE)
+}
+```
+
+
+## L & R precuneus pretx
+```{r}
+# L & R Precuneus
+rm(list = ls())
+list_of_ROI <- c("precuneus")
+for (i in 1:length(list_of_ROI)){
+    HC_pattern <- paste(".*HC.*ses-pretx.*",list_of_ROI[i],".*\\.txt$",sep="")
+    THREED_HC_precuneus_rsfc_files <- list.files(path = "/projects/ttan/ThirtyFourD/analysis/precuneus_connectivity",recursive = TRUE,
+                                            pattern = HC_pattern,
+                                            full.names = TRUE)
+    HC_list_df <- lapply(THREED_HC_precuneus_rsfc_files, function(x) {x = read.table(file = x, header = FALSE, sep =",", nrows = 59412)})
+    combined_df <- do.call("cbind", lapply(HC_list_df, as.data.frame))
+    df.final <- as.data.frame(t(combined_df))
+    rm(combined_df,HC_list_df)
+    patients_pattern <- paste("(.*UHN|CAMH).+.*ses-pretx.*", list_of_ROI[i],".*\\.txt",sep="")
+    THREED_patients_precuneus_rsfc_files <- list.files(path = "/projects/ttan/ThirtyFourD/analysis/precuneus_connectivity",
+                            pattern = patients_pattern,
+                            full.names = TRUE)
+    columns = c("subid","MCD")
+    precuneus_MCD_df = data.frame(matrix(nrow=length(THREED_patients_precuneus_rsfc_files),ncol=length(columns)))
+    colnames(precuneus_MCD_df) = columns
+    for (j in 1:length(THREED_patients_precuneus_rsfc_files)){
+        patient_list <- lapply(THREED_patients_precuneus_rsfc_files[j], function(x) {x = read.table(file = x, header = FALSE, sep =",", nrows = 59412)})
+        patient_df <- data.frame(patient_list)
+        patient_df_final <- as.data.frame(t(patient_df))
+        patient_66HC <- rbind(patient_df_final, df.final)
+        rownames(patient_66HC) <- NULL
+        corr = rdist::pdist(patient_66HC, metric = "correlation")
+        corr_new <- replace(corr[,],corr[,] == 0, NA)
+        mean_corr_distance_df <- data.frame('',Meandist=rowMeans(corr_new,na.rm=TRUE))
+        str_split <- strsplit(basename(THREED_patients_precuneus_rsfc_files[j]),"_")
+        subid <- str_split[[1]][1]
+        print(subid)
+        mean_corr_distance_df$X..[1] <- subid
+        precuneus_MCD_df[j,] <- mean_corr_distance_df[1,]
+    }
+    write.csv(precuneus_MCD_df,paste("/projects/ttan/ThirtyFourD/analysis/3D_MDD_patient_bilateral",list_of_ROI[i],"_MCD_versus_66HC_pretx.csv",sep=""),row.names = FALSE)
+}
+```
+
+## L & R precuneus posttx
+```{r}
+# L & R Precuneus
+rm(list = ls())
+list_of_ROI <- c("precuneus")
+for (i in 1:length(list_of_ROI)){
+    HC_pattern <- paste(".*HC.*ses-pretx.*",list_of_ROI[i],".*\\.txt$",sep="")
+    THREED_HC_precuneus_rsfc_files <- list.files(path = "/projects/ttan/ThirtyFourD/analysis/precuneus_connectivity",recursive = TRUE,
+                                            pattern = HC_pattern,
+                                            full.names = TRUE)
+    HC_list_df <- lapply(THREED_HC_precuneus_rsfc_files, function(x) {x = read.table(file = x, header = FALSE, sep =",", nrows = 59412)})
+    combined_df <- do.call("cbind", lapply(HC_list_df, as.data.frame))
+    df.final <- as.data.frame(t(combined_df))
+    rm(combined_df,HC_list_df)
+    patients_pattern <- paste("(.*UHN|CAMH).+.*ses-posttx.*", list_of_ROI[i],".*\\.txt",sep="")
+    THREED_patients_precuneus_rsfc_files <- list.files(path = "/projects/ttan/ThirtyFourD/analysis/precuneus_connectivity",
+                            pattern = patients_pattern,
+                            full.names = TRUE)
+    columns = c("subid","MCD")
+    precuneus_MCD_df = data.frame(matrix(nrow=length(THREED_patients_precuneus_rsfc_files),ncol=length(columns)))
+    colnames(precuneus_MCD_df) = columns
+    for (j in 1:length(THREED_patients_precuneus_rsfc_files)){
+        patient_list <- lapply(THREED_patients_precuneus_rsfc_files[j], function(x) {x = read.table(file = x, header = FALSE, sep =",", nrows = 59412)})
+        patient_df <- data.frame(patient_list)
+        patient_df_final <- as.data.frame(t(patient_df))
+        patient_66HC <- rbind(patient_df_final, df.final)
+        rownames(patient_66HC) <- NULL
+        corr = rdist::pdist(patient_66HC, metric = "correlation")
+        corr_new <- replace(corr[,],corr[,] == 0, NA)
+        mean_corr_distance_df <- data.frame('',Meandist=rowMeans(corr_new,na.rm=TRUE))
+        str_split <- strsplit(basename(THREED_patients_precuneus_rsfc_files[j]),"_")
+        subid <- str_split[[1]][1]
+        mean_corr_distance_df$X..[1] <- subid
+        precuneus_MCD_df[j,] <- mean_corr_distance_df[1,]
+    }
+    write.csv(precuneus_MCD_df,paste("/projects/ttan/ThirtyFourD/analysis/3D_MDD_patient_bilateral",list_of_ROI[i],"_MCD_versus_66HC_posttx.csv",sep=""),row.names = FALSE)
+}
+```
+
+```{r}
+# Loop through HCs
+for (i in 1:length(THREED_HC_LDLPFC_rsfc_files)){
+  HC_str_split <- strsplit(basename(THREED_HC_LDLPFC_rsfc_files[i]),"_")
+  HC_subid <- HC_str_split[[1]][1]
+  mean_corr_distance_df$X..[i+1] <- HC_subid
+}
+new_df[i,] <- mean_corr_distance_df[1,]
+new_df[2,] <- mean_corr_distance_df[2,]
+```
+
+```{r}
+library(doParallel)
+registerDoParallel(3)
+```
+
+
+# Z-transform the connectivity matrix
+```{r}
+library(DescTools)
+for (p in names(resid_ts)){
+  zt = resid_ts[[p]] <- FisherZ(resid_ts[[p]])
+}
+```
+
+# Resting state data
+```{r read in clinical and baseline data}
+
+THREED_clin_scores <- read_excel("/mnt/tigrlab/projects/ttan/ThirtyFourD/analysis/2023_01_Hawco_THREED_Collaboration.xlsx")
+HC_clin_scores <- read_excel("/projects/ttan/ThirtyFourD/analysis/Controls_3D_Colin.xlsx")
+HC_MCD_df <- read_excel("/projects/ttan/ThirtyFourD/analysis/3D_66_HCs_MCD_data.xlsx")
+MDD_MCD_df <- read_excel("/projects/ttan/ThirtyFourD/analysis/3D_MDD_patient_MCD_versus_66HC_data.xlsx")
+MDD_MCD_df_long <- read.csv("/projects/ttan/ThirtyFourD/analysis/3D_MDD_patient_MCD_versus_66HC_with_clinical_data_longformat.csv", stringsAsFactors = FALSE)
+#THREED_cli_scores <- read_excel("D:/Thesis/3D/2023_01_Hawco_THREED_Collaboration.xlsx")
+#HC_MCD_df <- read_excel("D:/Thesis/3D/3D_70_HCs_MCD_data.xlsx")
+#MDD_MCD_df <- read_excel("D:/Thesis/3D/3D_MDD_patient_MCD_versus_70HC_data.xlsx")
+#MDD_MCD_df_long <- read.csv("D:/Thesis/3D/pre_post_252_participants_long_df_updated.csv", stringsAsFactors = FALSE)
+#THREED_r_scores <- read_excel("/mnt/tigrlab/projects/ttan/ThirtyFourD/analysis/3D_252_participants_ind_var_data_removed_FD.xlsx")
+
+for (i in 1:length(THREED_clin_scores$STUDY_ID)){
+  subid <- gsub('-','',THREED_clin_scores$STUDY_ID[i])
+  THREED_clin_scores$STUDY_ID[i] <- paste0("sub-",subid)
+}
+
+for (i in 1:length(HC_clin_scores$ID)){
+  subid <- gsub('-','',HC_clin_scores$ID[i])
+  HC_clin_scores$ID[i] <- paste0("sub-",subid,"HC")
+}
+
+# Merge MCD and demographic data together for MDD 
+MDD_MCD_clin_df <- merge(x=THREED_clin_scores,y=MDD_MCD_df,by.x='STUDY_ID',by.y='subid',all.y = TRUE)
+#Generate csv sheet include MCD annd demographic data for 252 MDD patients
+#write.csv(MDD_MCD_cli_df,"/projects/ttan/ThirtyFourD/analysis/3D_MDD_patient_MCD_versus_66HC_with_clinical_data.csv",row.names = FALSE)
+# Merge MCD and demographic data together for HC 
+HC_MCD_clin_df <- merge(x=HC_clin_scores,y=HC_MCD_df,by.x='ID',by.y = 'subid',all.y= TRUE)
+colnames(HC_MCD_clin_df)[1] <- "STUDY_ID"
+
+# Merge 66 HC and 252 patients MCD dataframe with clinical scores
+MDD_HC_MCD_clin_df <- bind_rows(MDD_MCD_clin_df,HC_MCD_clin_df)
+
+#label by group
+MDD_HC_MCD_clin_df$prim_x <- 0 #0 is controls
+#MDD_HC_MCD_df$prim_x <- "A"
+#MDD_HC_MCD_df$prim_x[1:252] <- "B"
+MDD_HC_MCD_clin_df$prim_x[1:252] <- 1 #1 is patients
+#group as factor for patients + HC dataframe
+MDD_HC_MCD_clin_df$prim_x <- as.factor(MDD_HC_MCD_clin_df$prim_x)
+MDD_HC_MCD_clin_df$GENDER <- as.factor(MDD_HC_MCD_clin_df$GENDER)
+#scan as factor for patients' long dataframe
+MDD_MCD_df_long$Scan <- as.factor(MDD_MCD_df_long$Scan)
+rm(HC_clin_scores, HC_MCD_df,MDD_MCD_clin_df,HC_MCD_clin_df)
+```
+
+# Add dummy variable for treatment type 
+```{r}
+# '1' is 6 week treatments 0 is 4 weeks
+for (i in 1:length(MDD_MCD_clin_df$STUDY_ID)){
+  if (MDD_MCD_clin_df$DROP_AFTER_WK4[i] == 0){
+    MDD_MCD_clin_df$TREATMENT_DURATION[i] <- '1'
+  } else {
+    MDD_MCD_clin_df$TREATMENT_DURATION[i] <- '0'
+  }
+}
+
+MDD_MCD_clin_df$TREATMENT_DURATION <- as.factor(MDD_MCD_clin_df$TREATMENT_DURATION)
+#write.csv(MDD_MCD_clin_df,"/projects/ttan/ThirtyFourD/analysis/3D_MDD_patient_MCD_versus_66HC_with_clinical_data_updated.csv",row.names = FALSE)
+```
+
+# Responder variable 
+```{r}
+for (i in 1:length(MDD_MCD_clin_df$STUDY_ID)){
+  if (MDD_MCD_clin_df$DROP_AFTER_WK4[i] == 0){
+    MDD_MCD_clin_df$TREATMENT_DURATION[i] <- '1'
+  } else {
+    MDD_MCD_clin_df$TREATMENT_DURATION[i] <- '0'
+  }
+}
+
+MDD_MCD_clin_df$TREATMENT_DURATION <- as.factor(MDD_MCD_clin_df$TREATMENT_DURATION)
+```
+### Baseline analyses - REST
+
+## group differences in individual variability - MDD vs HC.
+```{r}
+# assessing normality of data - within each group
+MDD_HC_MCD_clin_df %>%
+  group_by(prim_x) %>%
+  shapiro_test(LDLPFC_MCD_pretx, R_sgACC_MCD_pretx, LDLPFC_MCD_posttx, R_sgACC_MCD_posttx,
+               bilateral_insula_prettx, bilateral_insula_posttx,
+               bilateral_precuneus_pretx, bilateral_precuneus_posttx)
+
+
+# Normality of MCD score
+# Normality test for single variable
+shapiro.test(MDD_HC_MCD_clin_df$LDLPFC_mean_distance_posttx) # p = 4.4e-09
+shapiro.test(MDD_HC_MCD_clin_df$LDLPFC_mean_distance_pretx) # p = 2.413e-09
+shapiro.test(MDD_HC_MCD_clin_df$R_sgACC_mean_distance_posttx) #  p-value = 2.04e-08
+shapiro.test(MDD_HC_MCD_clin_df$R_sgACC_mean_distance_pretx) # p-value = 3.795e-11
+shapiro.test(MDD_HC_MCD_clin_df$bilateral_insula_pretx) # p-value = 1.352326e-08
+shapiro.test(MDD_HC_MCD_clin_df$bilateral_insula_posttx) # p-value = 2.034065e-10
+shapiro.test(MDD_HC_MCD_clin_df$bilateral_precunues_pretx) # p-value = 5.541860e-15
+shapiro.test(MDD_HC_MCD_clin_df$bilateral_precunues_posttx) # p-value = 4.911881e-07
+# Plot distribution of MCD
+library(plyr)
+cdat <- ddply(MDD_HC_MCD_df, "prim_x", summarise, MCD.mean=mean(LDLPFC_MCD_pretx))
+MDD_HC_MCD_df %>%
+  ggplot(aes(x = LDLPFC_MCD_pretx, fill=prim_x)) + 
+  geom_histogram(bins = 50,alpha=.5) +
+  geom_vline(data=cdat,aes(xintercept=MCD.mean, colour=prim_x),
+             linetype="dashed", size=1)
+
+# The data is not normally distributed, this make sense because most of the data is skewed to the left because there are some outlier with MCD greater > 0.6
+
+# MDD vs HC
+wilcox.test(LDLPFC_MCD_pretx ~ prim_x, data=MDD_HC_MCD_clin_df)
+wilcox.test(R_sgACC_MCD_pretx ~ prim_x, data=MDD_HC_MCD_clin_df)
+
+# LDLPFC MCD between MDD and HC
+t1 <- lm(LDLPFC_MCD_pretx ~ prim_x, data=MDD_HC_MCD_clin_df) # no significant
+car::Anova(t1)
+
+# remain insignificant with the covariates
+t1 <- lm(LDLPFC_MCD_pretx ~ prim_x + AGE + GENDER + mean_FD_pretx, data=MDD_HC_MCD_clin_df)
+car::Anova(t1) 
+em_t1 <- emmeans(t1, pairwise ~ prim_x, adj = "Bonferroni")
+em_t1
+
+#sjPlot::tab_model(t1)
+
+# RsgACC MCD between MDD and HC
+
+# Significant different between group
+t1 <- lm(R_sgACC_MCD_pretx ~ prim_x, data=MDD_HC_MCD_clin_df)
+car::Anova(t1) 
+em_t1 <- emmeans(t1, pairwise ~ prim_x, adj = "Bonferroni")
+em_t1
+
+# The significance became marignal when adding covariates
+#t1 <- lm(R_sgACC_MCD_pretx ~ prim_x*AGE + mean_FD_pretx + prim_x*GENDER, data=MDD_HC_MCD_clin_df)
+t2 <- lm(R_sgACC_MCD_pretx ~ prim_x + AGE + mean_FD_pretx + GENDER, data=MDD_HC_MCD_clin_df)
+car::Anova(t2) 
+em_t2 <- emmeans(t2, pairwise ~ prim_x, adj = "Bonferroni")
+em_t2
+cohens_f_squared(t2)
+# standardize beta-cofficient ~ effect size
+# parameters::standardize_parameters(t2)
+
+# Bilateral insula MCD between MDD and HC
+
+# Significant different between group
+t3 <- lm(bilateral_insula_MCD_pretx ~ prim_x + AGE + mean_FD_pretx + GENDER, data=MDD_HC_MCD_clin_df)
+#t1 <- lm(bilateral_insula_MCD_prettx ~ prim_x*AGE + mean_FD_pretx + prim_x*GENDER, data=MDD_HC_MCD_clin_df)
+car::Anova(t3) 
+em_t3 <- emmeans(t3, pairwise ~ prim_x, adj = "Bonferroni")
+em_t3
+
+
+# Bilateral precuneus MCD between MDD and HC
+
+# Significant different between group
+#t1 <- lm(bilateral_precuneus_MCD_pretx ~ prim_x,data=MDD_HC_MCD_clin_df)
+t4 <- lm(bilateral_precuneus_MCD_pretx ~ prim_x + AGE + mean_FD_pretx + GENDER, data=MDD_HC_MCD_clin_df)
+#t1 <- lm(bilateral_precuneus_pretx ~ prim_x*AGE + mean_FD_pretx + prim_x*GENDER, data=MDD_HC_MCD_clin_df)
+car::Anova(t4) 
+em_t4 <- emmeans(t4, pairwise ~ prim_x, adj = "Bonferroni")
+em_t4
+
+# FDR-corrected p-values
+# LDLPFC = 0.657, RsgACC = 0.079, insula = 0.460, precunues = 0.164
+p_val <- c(0.657,0.079,0.460,0.164)
+p.adjust(p_val)
+# Check normality of model's residul
+#par(mfrow=c(2,2))
+#plot(t1)
+#qqnorm(resid(pre_post_ind_var_LDLPFC))
+#qqline(resid(pre_post_ind_var_LDLPFC))
+```
+
+# Plot HC vs MDD
+```{r Graphing individual variability - baseline cohort - HC vs MDD}
+
+# LDLPFC 
+p <- ggplot(MDD_HC_MCD_clin_df, aes(y=LDLPFC_MCD_pretx, x=prim_x, fill=prim_x)) + 
+  geom_boxplot(alpha = 0.8, outlier.shape=NA) + 
+    geom_dotplot(binaxis = "y", stackdir = "center",alpha = 0.4, binwidth=0.002) +
+  #geom_point(aes(fill=prim_x)) + 
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  ylim(0.43, 0.67) +
+  #stat_summary(fun.y = mean, geom="point", shape=18, size=4, color="white")+
+  xlab('') + ylab('Mean Correlational Distance 
+                  L-DLPFC                     ')+
+  #scale_fill_manual(values=c("#999999","#FFFFFF"), 
+   scale_fill_manual(values=c("#333333","#cccccc"),
+                  name="",
+                    breaks=c("1","0"),
+                    labels=c("MDD","HC")) +
+  theme_bw() + theme(panel.border = element_blank())
+p_fixed <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=18,face="bold"),legend.text= element_text(size=14), legend.key.size = unit (1,'cm'))
+p_paper <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=12,face="bold"),legend.text= element_text(size=12), legend.key.size = unit (1,'cm'))
+#ggsave("D:/Thesis/3D/baseline_individual_var_LDLPFC_MDD_HC_BW_fixed.png",p_fixed,units = c("px"),dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/baseline_individual_var_LDLPFC_MDD_HC_BW.png",p_fixed,height = 1400, width = 1200,units = c("px"),dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/baseline_individual_var_LDLPFC_MDD_HC_BW_for_paper.png",p_paper,width=4,height=5,dpi = 300)
+# R-sgACC
+p <- ggplot(MDD_HC_MCD_clin_df, aes(y=R_sgACC_MCD_pretx, x=prim_x, fill=prim_x)) + 
+  geom_boxplot(alpha = 0.8, outlier.shape=NA) + 
+    geom_dotplot(binaxis = "y", stackdir = "center",alpha = 0.4, binwidth=0.002) +
+  #geom_point(aes(fill=prim_x)) + 
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  ylim(0.43, 0.67) +
+  #stat_summary(fun.y = mean, geom="point", shape=18, size=4, color="white")+
+  xlab('') + ylab('Mean Correlational Distance 
+                  R-sgACC                     ')+
+  #scale_fill_manual(values=c("#999999","#FFFFFF"), 
+   scale_fill_manual(values=c("#333333","#cccccc"),
+                  name="",
+                    breaks=c("1","0"),
+                    labels=c("MDD","HC")) +
+  theme_bw() + theme(panel.border = element_blank()) #+ stat_compare_means(method="anova",label.x = 1.5,label.y = 0.6,size=5)
+p_fixed <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=18,face="bold"),legend.text= element_text(size=14), legend.key.size = unit (1,'cm'))
+p_paper <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=12,face="bold"),legend.text= element_text(size=12), legend.key.size = unit (1,'cm'))
+#ggsave("D:/Thesis/3D/baseline_individual_var_RsgACC_MDD_HC_BW_fixed.png",p_fixed,units = c("px"),dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/baseline_individual_var_RsgACC_MDD_HC_BW.png",p_fixed,height = 1400, width = 1200,units = c("px"),dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/baseline_individual_var_RsgACC_MDD_HC_BW_for_paper.png",p_paper,height = 5, width = 4,dpi = 300)
+# Insula 
+p <- ggplot(MDD_HC_MCD_clin_df, aes(y=bilateral_insula_MCD_pretx, x=prim_x, fill=prim_x)) + 
+  geom_boxplot(alpha = 0.8, outlier.shape=NA) + 
+    geom_dotplot(binaxis = "y", stackdir = "center",alpha = 0.4, binwidth=0.002) +
+  #geom_point(aes(fill=prim_x)) + 
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  ylim(0.43, 0.67) +
+  #stat_summary(fun.y = mean, geom="point", shape=18, size=4, color="white")+
+  xlab('') + ylab('Mean Correlational Distance 
+                  Bilateral Insula                     ')+
+  #scale_fill_manual(values=c("#999999","#FFFFFF"), 
+   scale_fill_manual(values=c("#333333","#cccccc"),
+                  name="",
+                    breaks=c("1","0"),
+                    labels=c("MDD","HC")) +
+  theme_bw() + theme(panel.border = element_blank()) #+ stat_compare_means(method="anova",label.x = 1.5,label.y = 0.6,size=5)
+p_fixed <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=18,face="bold"),legend.text= element_text(size=14), legend.key.size = unit (1,'cm'))
+p_paper <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=12,face="bold"),legend.text= element_text(size=12), legend.key.size = unit (1,'cm'))
+#ggsave("D:/Thesis/3D/baseline_individual_var_bilateral_insula_MDD_HC_BW_fixed.png",p_fixed,height = 1400, width = 1200,units = c("px"),dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/baseline_individual_var_insula_MDD_HC_BW.png",p_fixed,height = 1400, width = 1200,units = c("px"),dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/baseline_individual_var_insula_MDD_HC_BW_for_paper.png",p_paper,height = 5, width = 4,dpi = 300)
+# Precuneus
+p <- ggplot(MDD_HC_MCD_clin_df, aes(y=bilateral_precuneus_MCD_pretx, x=prim_x, fill=prim_x)) + 
+  geom_boxplot(alpha = 0.8, outlier.shape=NA) + 
+    geom_dotplot(binaxis = "y", stackdir = "center",alpha = 0.4, binwidth=0.002) +
+  #geom_point(aes(fill=prim_x)) + 
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  ylim(0.43, 0.67) +
+  #stat_summary(fun.y = mean, geom="point", shape=18, size=4, color="white")+
+  xlab('') + ylab('Mean Correlational Distance 
+                  Bilateral precuneus                     ')+
+  #scale_fill_manual(values=c("#999999","#FFFFFF"), 
+   scale_fill_manual(values=c("#333333","#cccccc"),
+                  name="",
+                    breaks=c("1","0"),
+                    labels=c("MDD","HC")) +
+  theme_bw() + theme(panel.border = element_blank()) #+ stat_compare_means(method="anova",label.x = 1.5,label.y = 0.6,size=5)
+p_fixed <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=18,face="bold"),legend.text= element_text(size=14), legend.key.size = unit (1,'cm'))
+p_paper <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=14,face="bold"),legend.text= element_text(size=14), legend.key.size = unit (1,'cm'))
+#ggsave("D:/Thesis/3D/baseline_individual_var_RsgACC_MDD_HC_BW_fixed.png",p_fixed,height = 1400, width = 1200,units = c("px"),dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/baseline_individual_var_precuneus_MDD_HC_BW.png",p_fixed,height = 1400, width = 1200,units = c("px"),dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/baseline_individual_var_precuneus_MDD_HC_BW_for_paper.png",p_paper,height = 5, width = 4,dpi = 300)
+```
+
+# Pre/post MCD in MDD linear mix model
+```{r}
+#effect size  = Cohen’s d = difference between the means / sqrt of sum of variances of random effects
+
+THREED_clin_scores <- read_excel("/mnt/tigrlab/projects/ttan/ThirtyFourD/analysis/2023_01_Hawco_THREED_Collaboration.xlsx")
+
+#wilcox.test(new_df$LDLPFC_mean_distance_pretx, new_df$LDLPFC_mean_distance_posttx, paired = TRUE, alternative = "less")
+wilcox.test(LDLPFC_MCD ~ Scan, data=MDD_MCD_df_long,paired=TRUE)
+wilcox.test(R_sgACC_MCD ~ Scan, data=MDD_MCD_df_long,paired=TRUE)
+wilcox.test(bilateral_insula_MCD ~ Scan, data=MDD_MCD_df_long,paired=TRUE)
+wilcox.test(bilateral_precuneus_MCD ~ Scan, data=MDD_MCD_df_long,paired=TRUE)
+#t1 <- lm(LDLPFC_MCD ~ Scan, data=MDD_MCD_df_long)
+
+#Using linear regression to include covariates
+
+MDD_rest_pre_post_long <- merge(MDD_MCD_df_long, THREED_clin_scores, 
+                 by=c("STUDY_ID"), all.x=TRUE)
+MDD_rest_pre_post_long_v1 <- merge(MDD_MCD_df_long, THREED_clin_scores,by=c("STUDY_ID"), all.x=TRUE)
+#MDD_rest_pre_post_long$Scan <- as.factor(MDD_rest_pre_post_long$Scan)
+MDD_rest_pre_post_long$GENDER <- as.factor(MDD_rest_pre_post_long$GENDER) #1 Male 2 Female
+MDD_rest_pre_post_long$treatment_duration <- as.factor(MDD_rest_pre_post_long$treatment_duration)
+MDD_rest_pre_post_long$HRSD_RESP_FNL <- as.factor(MDD_rest_pre_post_long$HRSD_RESP_FNL)
+# Changes MCD LDLPFC in response to rTMS
+
+pre_post_ind_var_LDLPFC <- lmer(LDLPFC_MCD ~ Scan + treatment_duration + FWD + (1|STUDY_ID), 
+               data = MDD_rest_pre_post_long)
+summary(pre_post_ind_var_LDLPFC)
+
+#print(Anova(active_Pre_post_ind_var_RDLPFC))
+#print(anova(active_Pre_post_ind_var_RDLPFC, type=3, ddf="Kenward-Roger")) 
+emmeans(pre_post_ind_var_LDLPFC, pairwise~Scan, adjust="fdr") 
+sjPlot::tab_model(pre_post_ind_var_LDLPFC, df.method = "satterthwaite")
+
+# Changes MCD R-sgACC in response to rTMS
+
+pre_post_ind_var_R_sgACC <- lmer(R_sgACC_MCD ~ Scan + treatment_duration + FWD + (1|STUDY_ID), 
+               data = MDD_rest_pre_post_long)
+summary(pre_post_ind_var_R_sgACC)
+
+#print(Anova(active_Pre_post_ind_var_RDLPFC))
+#print(anova(active_Pre_post_ind_var_RDLPFC, type=3, ddf="Kenward-Roger")) 
+emmeans(pre_post_ind_var_R_sgACC, pairwise~Scan, adjust="fdr") 
+sjPlot::tab_model(pre_post_ind_var_R_sgACC, df.method = "satterthwaite",digits = 3)
+
+# Changes MCD bilateral insula in response to rTMS
+
+pre_post_ind_var_bilateral_insula <- lmer(bilateral_insula_MCD ~ Scan + treatment_duration + FWD + (1|STUDY_ID), 
+               data = MDD_rest_pre_post_long)
+summary(pre_post_ind_var_bilateral_insula)
+
+emmeans(pre_post_ind_var_bilateral_insula, pairwise~Scan, adjust="fdr") 
+sjPlot::tab_model(pre_post_ind_var_bilateral_insula, df.method = "satterthwaite",digits = 3)
+
+# Changes MCD bilateral precuneus in response to rTMS
+
+pre_post_ind_var_bilateral_precuneus <- lmer(bilateral_precuneus_MCD ~ Scan + treatment_duration + FWD + (1|STUDY_ID), 
+               data = MDD_rest_pre_post_long)
+summary(pre_post_ind_var_bilateral_precuneus)
+
+emmeans(pre_post_ind_var_bilateral_precuneus, pairwise~Scan, adjust="fdr") 
+sjPlot::tab_model(pre_post_ind_var_bilateral_precuneus, df.method = "satterthwaite",digits = 3)
+
+qqnorm(resid(pre_post_ind_var_LDLPFC))
+qqline(resid(pre_post_ind_var_LDLPFC))
+#print(Anova(active_Pre_post_ind_var_RDLPFC))
+#print(anova(active_Pre_post_ind_var_RDLPFC, type=3, ddf="Kenward-Roger")) 
+
+#FDR-corrected pvalue
+#LDLPFC = 0.488, RsgACC = 0.025, Insula =  0.201, Precuneus = 0.014
+p_val <- c(0.488,0.025,0.201,0.014)
+p.adjust(p_val,method="fdr")
+# Plot R-sgACC pre/post TMS
+
+MDD_rest_pre_post_long$Scan <- 
+  factor(MDD_rest_pre_post_long$Scan, levels=c("1","2"),
+         labels=c("Pre", "Post"))
+
+p <- ggplot(MDD_rest_pre_post_long, aes(y=R_sgACC_MCD, x=Scan, group=STUDY_ID)) + 
+    geom_line(size=0.75, alpha=0.3)+
+    stat_smooth(aes(group = 1), method = "lm", se = TRUE, colour="#D55E00", size=3 ) +
+    stat_summary(aes(group = 1), geom = "point", fun = mean, shape = 17, size = 3, colour="#D55E00") +
+    geom_point(alpha=0.3) + xlab('Time') + ylab('Mean Correlational Distance
+                    R-sgACC                  ') + 
+    ylim(min(MDD_rest_pre_post_long$R_sgACC_MCD),max(MDD_rest_pre_post_long$bilateral_precuneus_MCD))+ theme_bw() + theme(panel.border = element_blank())#+ geom_text(x = 1.5, y = 0.65, label = "*",size=8)
+p_fixed <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=18,face="bold"),legend.text= element_text(size=14))
+p_paper <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=14,face="bold"),legend.text= element_text(size=14))
+ggsave("D:/Thesis/3D/MDD_R-sgACC_MCD_pre_post_changes", width=2.8, height=2.5, device = "jpeg")
+ggsave("D:/Thesis/3D/MDD_R-sgACC_MCD_pre_post_changes.png",p, scale = 1, width=1500,  height= 1500, units = c("px"), dpi = 300)
+ggsave("D:/Thesis/3D/MDD_R-sgACC_MCD_pre_post_changes.png",p_fixed, scale = 1, width=1500,  height= 1500, units = c("px"), dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/MDD_R-sgACC_MCD_pre_post_changes.png",p_paper, scale = 1, width=1500,  height= 1500, units = c("px"), dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/MDD_R-sgACC_MCD_pre_post_changes_poster.png",p_fixed, scale = 1, width=1200,  height= 2000, units = c("px"), dpi = 300)
+# Plot bilateral precuneus pre/post TMS
+p <- ggplot(MDD_rest_pre_post_long, aes(y=bilateral_precuneus_MCD, x=Scan, group=STUDY_ID)) + 
+    geom_line(size=0.75, alpha=0.3)+
+    stat_smooth(aes(group = 1), method = "lm", se = TRUE, colour="#0099CC", size=3 ) +
+    stat_summary(aes(group = 1), geom = "point", fun = mean, shape = 17, size = 3, colour="#0099CC") +
+    geom_point(alpha=0.3) + xlab('Time') + ylab('Mean Correlational Distance
+                    Bilateral Precuneus                  ') + 
+    ylim(min(MDD_rest_pre_post_long$R_sgACC_MCD),max(MDD_rest_pre_post_long$bilateral_precuneus_MCD))+ theme_bw() + theme(panel.border = element_blank()) #+ geom_text(x = 1.5, y = 0.65, label = "*",size=8)
+p_fixed <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=18,face="bold"),legend.text= element_text(size=14))
+p_paper <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=14,face="bold"),legend.text= element_text(size=14))
+ggsave("D:/Thesis/3D/MDD_R-sgACC_MCD_pre_post_changes", width=2.8, height=2.5, device = "jpeg")
+ggsave("D:/Thesis/3D/MDD_R-sgACC_MCD_pre_post_changes.png",p, scale = 1, width=1500,  height= 1500, units = c("px"), dpi = 300)
+ggsave("D:/Thesis/3D/MDD_R-sgACC_MCD_pre_post_changes.png",p_fixed, scale = 1, width=1500,  height= 1500, units = c("px"), dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/MDD_bilateral_precuneus_MCD_pre_post_changes.png",p_paper, scale = 1, width=1500,  height= 1500, units = c("px"), dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/MDD_bilateral_precuneus_MCD_pre_post_changes_poster.png",p_fixed, scale = 1, width=1200,  height= 2000, units = c("px"), dpi = 300)
+```
+
+# Pre/post MCD relate to pre/post HRDS - Linear model
+```{r}
+# Merge the MCD in MDD with clinical data
+MDD_MCD_clin_df <- merge(x=THREED_clin_scores,y=MDD_MCD_df,by.x='STUDY_ID',by.y='subid',all.y = TRUE)
+MDD_MCD_clin_df$changes_in_HRSD <- MDD_MCD_clin_df$HRSD_T0 - as.numeric(MDD_MCD_clin_df$`HRSD Final`)
+MDD_MCD_clin_df$changes_in_LDLPFC_MCD <- MDD_MCD_clin_df$LDLPFC_MCD_posttx - MDD_MCD_clin_df$LDLPFC_MCD_pretx
+MDD_MCD_clin_df$changes_in_R_sgACC_MCD <- MDD_MCD_clin_df$R_sgACC_MCD_posttx - MDD_MCD_clin_df$R_sgACC_MCD_pretx
+MDD_MCD_clin_df$changes_in_bilateral_insula_MCD <- MDD_MCD_clin_df$bilateral_insula_MCD_posttx - MDD_MCD_clin_df$bilateral_insula_MCD_pretx
+MDD_MCD_clin_df$changes_in_bilateral_precuneus_MCD <- MDD_MCD_clin_df$bilateral_precuneus_MCD_posttx - MDD_MCD_clin_df$bilateral_precuneus_MCD_pretx
+MDD_MCD_clin_df$avg_FD <- rowMeans(MDD_MCD_clin_df[,c('mean_FD_pretx','mean_FD_posttx')], na.rm=TRUE)
+MDD_MCD_clin_df$GENDER <- as.factor(MDD_MCD_clin_df$GENDER)
+MDD_MCD_clin_df$`HRSD Final` <- as.numeric(MDD_MCD_clin_df$`HRSD Final`)
+MDD_MCD_clin_df$HRSD_RESP_FNL <- as.factor(MDD_MCD_clin_df$HRSD_RESP_FNL)
+
+# Plot changes in MCD responder versus non-responder
+ggplot(MDD_MCD_clin_df, aes(y=changes_in_R_sgACC_MCD, x=HRSD_RESP_FNL, fill=HRSD_RESP_FNL)) + 
+  geom_boxplot(alpha = 0.8, outlier.shape=NA) + 
+    geom_dotplot(binaxis = "y", stackdir = "center",alpha = 0.4, binwidth=0.002) +
+  #geom_point(aes(fill=prim_x)) + 
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  ylim(-0.07, 0.08) +
+  #stat_summary(fun.y = mean, geom="point", shape=18, size=4, color="white")+
+  xlab('') + ylab('Mean Correlational Distance 
+                  L-DLPFC                     ')+
+  #scale_fill_manual(values=c("#999999","#FFFFFF"), 
+   scale_fill_manual(values=c("#333333","#cccccc"),
+                  name="",
+                    breaks=c("1","0"),
+                    labels=c("Responder","Non-Responder")) +
+  theme_bw() + theme(panel.border = element_blank())
+
+#R-sgACC
+
+mod_lm_sex <- lm(R_sgACC_MCD_pretx ~ GENDER, data=MDD_MCD_clin_df)
+summary(mod_lm_sex)
+car::Anova(mod_lm_sex)
+mod_lm_sex <- lm(changes_in_R_sgACC_MCD ~ GENDER, data=MDD_MCD_clin_df)
+summary(mod_lm_sex)
+em_t1 <- emmeans(mod_lm_sex, pairwise ~ GENDER, adj = "Bonferroni")
+em_t1
+
+# Correlation between change in MCD and change in HDRS
+
+# PAPER
+
+# L-DLPFC
+
+cor.test(MDD_MCD_clin_df$changes_in_HRSD, MDD_MCD_clin_df$changes_in_LDLPFC_MCD)
+
+# Linear Model to predict changes in HSRD and changes in MCD
+
+mod_lm_LDLPFC <- lm(changes_in_HRSD ~ changes_in_LDLPFC_MCD + HRSD_T0 + TREATMENT_DURATION + 
+                    avg_FD, data=MDD_MCD_clin_df)
+car::Anova(mod_lm_LDLPFC)
+
+# Baseline MCD as main predictor to delta HRSD 
+# LDLPFC
+baseline_mod_lm_LDLPFC <- lm(changes_in_HRSD ~ LDLPFC_MCD_pretx + HRSD_T0 + avg_FD , data=MDD_MCD_clin_df)
+car::Anova(baseline_mod_lm_LDLPFC)
+
+# Linear Model to predict changes in HSRD and changes in MCD
+# R-sgACC
+
+mod_lm_RsgACC <- lm(changes_in_HRSD ~ changes_in_R_sgACC_MCD + HRSD_T0 + TREATMENT_DURATION +  
+                                      avg_FD, data=MDD_MCD_clin_df)
+
+car::Anova(mod_lm_RsgACC)
+
+# Baseline MCD as main predictor to delta HRSD 
+baseline_mod_lm_RsgACC <- lm(changes_in_HRSD ~ R_sgACC_MCD_pretx + HRSD_T0 + avg_FD, data=MDD_MCD_clin_df)
+summary(baseline_mod_lm_RsgACC)
+car::Anova(baseline_mod_lm_RsgACC)
+
+# Linear Model to predict changes in HSRD and changes in MCD
+# bilateral-precuneus
+mod_lm_bilateral_precuneus <- lm(changes_in_HRSD ~ changes_in_bilateral_precuneus_MCD + HRSD_T0 + TREATMENT_DURATION +  
+                                  avg_FD, data=MDD_MCD_clin_df)
+
+car::Anova(mod_lm_bilateral_precuneus)
+
+# Baseline MCD as main predictor to delta HRSD 
+baseline_mod_lm_bilateral_precuneus <- lm(changes_in_HRSD ~ bilateral_precuneus_MCD_pretx + HRSD_T0 + avg_FD, data=MDD_MCD_clin_df)
+summary(baseline_mod_lm_bilateral_precuneus)
+car::Anova(baseline_mod_lm_bilateral_precuneus)
+
+# Linear Model to predict changes in HSRD and changes in MCD
+# bilateral-insula
+
+mod_lm_bilateral_insula <- lm(changes_in_HRSD ~ changes_in_bilateral_insula_MCD + HRSD_T0 + TREATMENT_DURATION +  
+                              avg_FD, data=MDD_MCD_clin_df)
+
+car::Anova(mod_lm_bilateral_insula)
+
+# Baseline MCD as main predictor to delta HRSD 
+baseline_mod_lm_bilateral_insula <- lm(changes_in_HRSD ~ bilateral_insula_MCD_pretx + HRSD_T0 + avg_FD, data=MDD_MCD_clin_df)
+summary(baseline_mod_lm_bilateral_insula)
+car::Anova(baseline_mod_lm_bilateral_insula)
+
+# un-correct p-values for baseline MCD ~ delta HDRS 
+# LDLPFC = 0.3312, RsgACC = 0.04718, insula = 0.6360, precuneus = 0.3601
+#p_uncorrect <- c(0.3312,0.04718,0.6360, 0.3601)
+#un-correct p-value for delta MCD ~ delta HDRS
+# LDLPFC = 0.914, RsgACC = 0.813, insula=0.275, precuneus = 0.999
+#p_uncorrect <- c(0.331,0.047,0.636, 0.36)
+
+# Remove outlier for R-sgACC
+quartiles <- quantile(MDD_MCD_clin_df,probs = c(.25,.75),na.rm=FALSE)
+IQR <- IQR(MDD_MCD_clin_df$R_sgACC_MCD_pretx)
+Lower <- quartiles[1] - 1.5*IQR
+Upper <- quartiles[2] + 1.5*IQR
+
+mod_lm_RsgACC_updated <- lm(changes_in_HRSD ~ AGE + GENDER + R_sgACC_MCD_pretx + 
+                                      changes_in_R_sgACC_MCD + avg_FD, data=data_no_outlier)
+car::Anova(mod_lm_RsgACC_updated)
+data_no_outlier <- subset(MDD_MCD_clin_df, MDD_MCD_clin_df$R_sgACC_MCD_pretx > Lower & MDD_MCD_clin_df$R_sgACC_MCD_pretx < Upper)
+
+ggplot(data_no_outlier, aes(x=R_sgACC_MCD_pretx, y=changes_in_HRSD)) + geom_point(colour="#0099CC") + xlab('baseline R-sgACC MCD') + ylab('Change in HDRS') + geom_smooth(method=lm, colour="#0099CC") + ylim(-8, 29) + xlim(0.42,0.6)  +
+  theme_bw() + theme(panel.border = element_blank())
+
+which(MDD_MCD_clin_df$R_sgACC_MCD_pretx == max(MDD_HC_MCD_df$R_sgACC_MCD_pretx))
+```
+
+#Plot Delta HAM-D versus Delta-MCD
+```{r}
+# LDLPFC 
+p <- ggplot(MDD_MCD_clin_df, aes(x=changes_in_LDLPFC_MCD, y=changes_in_HRSD)) + geom_point(colour="#0099CC") + xlab('Change in LDLFPC MCD') + ylab('Change in HDRS') + geom_smooth(method=lm, colour="#0099CC") + ylim(-8, 32) + xlim(-0.1,0.1)  +
+  theme_bw() + theme(panel.border = element_blank()) + theme(axis.title = element_text(size = 14)) #+ stat_cor(method = "pearson", label.x = 0, label.y = 31,digit=3)
+p_fixed <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=18,face="bold"),legend.text= element_text(size=14))
+p_paper <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=14,face="bold"),legend.text= element_text(size=14))
+#ggsave("D:/Thesis/3D/Association_between_change_in_HDRS_and_LDLPFC_MCD.png",p, scale = 1, width=1500,  height= 1500, units = c("px"), dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/Delta_HDRS_and_Delta_LDLPFC_MCD.png",p_paper, scale = 1, width=1500,  height= 1500, units = c("px"), dpi = 300)
+
+# R-sgACC
+p <- ggplot(MDD_MCD_clin_df, aes(x=changes_in_R_sgACC_MCD, y=changes_in_HRSD)) + geom_point(colour="#D55E00") + xlab('Change in R-sgACC MCD') + ylab('Change in HDRS') + geom_smooth(method=lm, colour="#D55E00") + ylim(-8, 32) + xlim(-0.1,0.1)  +
+  theme_bw() + theme(panel.border = element_blank()) +  theme(axis.title = element_text(size = 14)) #+ stat_cor(method = "pearson", label.x = 0, label.y = 31,digits = 3)  
+p_fixed <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=18,face="bold"),legend.text= element_text(size=14))
+p_paper <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=14,face="bold"),legend.text= element_text(size=14))
+#ggsave("D:/Thesis/3D/Association_between_change_in_HDRS_and_R-sgACC_MCD.png",p, scale = 1, width=1500,  height= 1500, units = c("px"), dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/Delta_HDRS_and_Delta_R-sgACC_MCD.png",p_paper, scale = 1, width=1500,  height= 1500, units = c("px"), dpi = 300)
+
+# Bilateral insula
+p <- ggplot(MDD_MCD_clin_df, aes(x=changes_in_bilateral_insula_MCD, y=changes_in_HRSD)) + geom_point(colour="#2ca25f") + xlab('Change in bilateral insula MCD') + ylab('Change in HDRS') + geom_smooth(method=lm, colour="#2ca25f") + ylim(-8, 32) + xlim(-0.1,0.1)  +
+  theme_bw() + theme(panel.border = element_blank()) +  theme(axis.title = element_text(size = 14)) #+ stat_cor(method = "pearson", label.x = 0, label.y = 31,digits = 3)  
+p_fixed <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=18,face="bold"),legend.text= element_text(size=14))
+p_paper <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=14,face="bold"),legend.text= element_text(size=14))
+#ggsave("D:/Thesis/3D/Association_between_change_in_HDRS_and_R-sgACC_MCD.png",p, scale = 1, width=1500,  height= 1500, units = c("px"), dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/Delta_HDRS_and_Delta_insula_MCD.png",p_paper, scale = 1, width=1500,  height= 1500, units = c("px"), dpi = 300)
+
+# Bilateral precuneus
+p <- ggplot(MDD_MCD_clin_df, aes(x=changes_in_bilateral_precuneus_MCD, y=changes_in_HRSD)) + geom_point(colour="#CC00FF") + xlab('Change in bilateral precuneus MCD') + ylab('Change in HDRS') + geom_smooth(method=lm, colour="#CC00FF") + ylim(-8, 32) + xlim(-0.1,0.1)  +
+  theme_bw() + theme(panel.border = element_blank()) +  theme(axis.title = element_text(size = 14)) #+ stat_cor(method = "pearson", label.x = 0, label.y = 31,digits = 3)  
+p_fixed <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=18,face="bold"),legend.text= element_text(size=14))
+p_paper <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=14,face="bold"),legend.text= element_text(size=14))
+#ggsave("D:/Thesis/3D/Association_between_change_in_HDRS_and_R-sgACC_MCD.png",p, scale = 1, width=1500,  height= 1500, units = c("px"), dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/Delta_HDRS_and_Delta_precuneus_MCD.png",p_paper, scale = 1, width=1500,  height= 1500, units = c("px"), dpi = 300)
+
+#Baseline R-sgACC MCD & changes in HRSD
+cor.test(MDD_MCD_clin_df$changes_in_HRSD, MDD_MCD_clin_df$R_sgACC_MCD_pretx)
+p <- ggplot(MDD_MCD_clin_df, aes(x=R_sgACC_MCD_pretx, y=changes_in_HRSD)) + geom_point(colour="#D55E00") + xlab('baseline R-sgACC MCD') + ylab('Change in HDRS') + geom_smooth(method=lm, colour="#D55E00") + ylim(-8, 31) + xlim(0.42,0.6)  +
+  theme_bw() + theme(panel.border = element_blank())
+p_fixed <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=18,face="bold"),legend.text= element_text(size=14))
+p_paper <- p + theme(axis.text=element_text(size=12), axis.title=element_text(size=14,face="bold"),legend.text= element_text(size=14))
+#ggsave("D:/Thesis/3D/Association_between_change_in_HDRS_and_baseline_R-sgACC_MCD_fixed.png",p_fixed, scale = 1, width=1500,  height= 1500, units = c("px"), dpi = 300)
+ggsave("/projects/ttan/ThirtyFourD/analysis/figures/Association_between_change_in_HDRS_and_baseline_R-sgACC_MCD.png",p_paper, scale = 1, width=1500,  height= 1500, units = c("px"), dpi = 300)
+
+```
+
+# Correlation test between variables of interest
+```{r variables of interest correlations - for Table}
+# Testing correlations between pre and post MCD with pre and post HDRS (just to know)
+# to summarize in tables - MAYBE MOVE TO OWN SECTION ONCE COMPLETE
+corr1 <- cor.test(df_Active_rest_pre_post$delta_individual_var_LDLPFC_groupR_active, df_Active_rest_pre_post$swm_totraw_delta)
+tab_model(corr1, show.stat = TRUE, show.df = TRUE, dv.labels = "Active - total errors - L-DLPFC" )
+
+# Age versus LDLPFC MCD, HAM-D
+#cor.test(MDD_MCD_clin_df$LDLPFC_MCD_pretx,MDD_MCD_clin_df$HRSD_T0) # NS
+#cor.test(MDD_MCD_clin_df$LDLPFC_MCD_posttx,MDD_MCD_clin_df$`HRSD Final`) # NS
+#cor.test(MDD_MCD_clin_df$AGE,MDD_MCD_clin_df$LDLPFC_MCD_pretx) #Marginal p.value = 0.052 cor=0.122082
+#cor.test(MDD_MCD_clin_df$AGE,MDD_MCD_clin_df$LDLPFC_MCD_posttx)
+corr1 <- cor.test(MDD_MCD_clin_df$AGE, MDD_MCD_clin_df$changes_in_LDLPFC_MCD)
+corr2 <- cor.test(MDD_MCD_clin_df$AGE, MDD_MCD_clin_df$changes_in_HRSD)
+tab_model(corr2, show.stat = TRUE, show.df = TRUE, dv.labels = "Active - total errors - L-DLPFC")
+# Right sgACC
+#cor.test(MDD_MCD_clin_df$R_sgACC_MCD_pretx,MDD_MCD_clin_df$HRSD_T0) # NS
+#cor.test(MDD_MCD_clin_df$R_sgACC_MCD_posttx,MDD_MCD_clin_df$`HRSD Final`) #Sig
+corr3 <- cor.test(MDD_MCD_clin_df$AGE, MDD_MCD_clin_df$changes_in_R_sgACC_MCD)
+tab_model(corr3, show.stat = TRUE, show.df = TRUE, dv.labels = "")
+# Insula
+corr4 <- cor.test(MDD_MCD_clin_df$AGE, MDD_MCD_clin_df$changes_in_bilateral_insula_MCD)
+tab_model(corr4, show.stat = TRUE, show.df = TRUE, dv.labels = "")
+#Precuneus
+corr5 <- cor.test(MDD_MCD_clin_df$AGE, MDD_MCD_clin_df$changes_in_bilateral_precuneus_MCD)
+tab_model(corr5, show.stat = TRUE, show.df = TRUE, dv.labels = "")
+
+MDD_MCD_df_updated <- MDD_MCD_clin_df[,c('AGE', 'LDLPFC_MCD_pretx','LDLPFC_MCD_posttx', 'R_sgACC_MCD_pretx', 'R_sgACC_MCD_posttx','mean_FD_pretx', 'mean_FD_posttx')]
+cor(MDD_MCD_df_updated)
+
+# Sex differences in base line MCD & delta MCD
+# LDLPFC
+mod_lm_sex <- lm(LDLPFC_MCD_pretx ~ GENDER, data=MDD_MCD_clin_df)
+mod_lm_sex <- lm(changes_in_HRSD ~ GENDER, data=MDD_MCD_clin_df)
+tab_model(mod_lm_sex,show.stat = TRUE, show.df = TRUE, dv.labels = "Delta HDRS")
+summary(mod_lm_sex)
+car::Anova(mod_lm_sex)
+
+mod_lm_sex <- lm(changes_in_LDLPFC_MCD ~ GENDER, data=MDD_MCD_clin_df)
+summary(mod_lm_sex)
+tab_model(mod_lm_sex,show.stat = TRUE, show.df = TRUE, dv.labels = "Delta LDLPFC MCD")
+mod_lm_sex <- lm(changes_in_R_sgACC_MCD ~ GENDER, data=MDD_MCD_clin_df)
+tab_model(mod_lm_sex,show.stat = TRUE, show.df = TRUE, dv.labels = "Delta R-sgACC MCD")
+mod_lm_sex <- lm(changes_in_bilateral_insula_MCD ~ GENDER, data=MDD_MCD_clin_df)
+tab_model(mod_lm_sex,show.stat = TRUE, show.df = TRUE, dv.labels = "Delta bilateral insula MCD")
+mod_lm_sex <- lm(changes_in_bilateral_precuneus_MCD ~ GENDER, data=MDD_MCD_clin_df)
+tab_model(mod_lm_sex,show.stat = TRUE, show.df = TRUE, dv.labels = "Delta bilateral precuneus MCD")
+```
+
+```{r Create table for all of the models}
+tab_model(lm1)
+
+```
+
+```{r PAPER - relating baseline variabiliy with change in variability - active}
+cor.test(MDD_MCD_clin_df$LDLPFC_MCD_pretx, MDD_MCD_clin_df$changes_in_LDLPFC_MCD) # sig
+cor.test(MDD_MCD_clin_df$R_sgACC_MCD_pretx, MDD_MCD_clin_df$changes_in_R_sgACC_MCD) # sig
+
+mod_lm_LDLPFC <- lm(changes_in_LDLPFC_MCD ~ LDLPFC_MCD_pretx + AGE + avg_FD + GENDER, data=MDD_MCD_clin_df)
+car::Anova(mod_lm_LDLPFC)
+
+mod_lm_R_sgACC <- lm(changes_in_R_sgACC_MCD ~ R_sgACC_MCD_pretx + AGE + avg_FD + GENDER, data= MDD_MCD_clin_df)
+
+car::Anova(mod_lm_R_sgACC)
+```
+
+
+```{r FDR correcting four reported SWM correlations - OLD}
+
+# four reported correlations from two chunks above
+
+# FDR correction for these four (SWM) correlations - weak correlation does not remain 
+ps <- c(0.06556)
+print(p.adjust(ps, method = "fdr"))
+
+# remove intermediate
+rm(ps)
+
+```
+
+# Extra stuff
+```{r}
+#new_df <- merge(x=THREED_cli_scores,y=THREED_r_scores,by.x='STUDY_ID',by.y='subid',all.y = TRUE)
+#new_df$changes_in_HRSD <- new_df$HRSD_T0 - as.numeric(new_df$`HRSD Final`)
+#write.csv(new_df,"/projects/ttan/ThirtyFourD/analysis/csv/3D_252_participants_data.csv",row.names = FALSE)
+#iTBS_df <- new_df[new_df$CONDITION=='TBS',]
+#HFL_df <- new_df[new_df$CONDITION=='HFL',]
+```
+
+## HFL versus iTBS
+
+```{r}
+library(dplyr)
+
+clin_df <- read.csv("D:/Thesis/3D/3D_252_participants_demo_data.csv")
+sum(clin_df[clin_df$DROP_AFTER_WK4 == 2,])
+#HFL group
+data <- HFL_df[,c('STUDY_ID', 'LDLPFC_mean_distance_pretx', 'LDLPFC_mean_distance_posttx')]
+data <- data %>% rename('baseline' = LDLPFC_mean_distance_pretx , 'post-rTMS' = LDLPFC_mean_distance_posttx)
+#iTBS group
+iTBS_data <- iTBS_df[,c('STUDY_ID', 'LDLPFC_mean_distance_pretx', 'LDLPFC_mean_distance_posttx')]
+iTBS_data <- iTBS_data %>% rename('baseline' = LDLPFC_mean_distance_pretx, 'post-rTMS' = LDLPFC_mean_distance_posttx)
+df.long <- data[,] %>% pivot_longer(cols= c('baseline', 'post-rTMS'), values_to = "MCD", names_to = "time")
+df_iTBS.long <- iTBS_data[,] %>% pivot_longer(cols= c('baseline', 'post-rTMS'), values_to = "MCD", names_to = "time")
+
+#All participants
+data_df <- new_df[,c('STUDY_ID','LDLPFC_mean_distance_pretx', 'LDLPFC_mean_distance_posttx')]
+data_df <- data_df %>% rename('baseline' = LDLPFC_mean_distance_pretx , 'post-rTMS' = LDLPFC_mean_distance_posttx)
+
+data_df.long <- data_df[,] %>% pivot_longer(cols= c('baseline', 'post-rTMS'), values_to = "MCD", names_to = "time")
+
+ggplot(data_df.long, aes(y=MCD, x=time, group=STUDY_ID)) + theme(text = element_text(size=20)) +
+    geom_line(size=0.75,alpha=0.65) + stat_smooth(aes(group = 1), method = "lm", se = TRUE, colour="#0099CC", size=2) +
+    stat_summary(aes(group = 1), geom = "point", fun = mean, shape = 17, size = 3, colour="#0099CC") +
+    geom_point() + xlab('Timepoint') + ylab('MCD') + ylim(0.5, 0.68) + theme_classic() + theme(text=element_text(family="Times New Roman",face="bold",size = 14),axis.title.x = element_text(margin = margin (t=20,0,0,0)),axis.title.y = element_text(margin = margin(t=0,20,0,0)))
+
+ggplot(df.long, aes(y=MCD, x=time, group=STUDY_ID)) + theme(text = element_text(size=20)) +
+    geom_line(size=0.75,alpha=0.65) + stat_smooth(aes(group = 1), method = "lm", se = TRUE, colour="#0099CC", size=2) +
+    stat_summary(aes(group = 1), geom = "point", fun = mean, shape = 17, size = 3, colour="#0099CC") +
+    geom_point() + xlab('Timepoint') + ylab('MCD') + ylim(0.5, 0.68) + theme_classic() + theme(text=element_text(family="Times New Roman",face="bold",size = 14),axis.title.x = element_text(margin = margin (t=20,0,0,0)),axis.title.y = element_text(margin = margin(t=0,20,0,0))) # can set limits to whatever makes sense for your depression scores
+
+ggplot(df_iTBS.long, aes(y=MCD, x=time, group=STUDY_ID)) + theme(text = element_text(size=20)) +
+    geom_line(size=0.75,alpha=0.65) + stat_smooth(aes(group = 1), method = "lm", se = TRUE, colour="#0099CC", size=2) +
+    stat_summary(aes(group = 1), geom = "point", fun = mean, shape = 17, size = 3, colour="#0099CC") +
+    geom_point() + xlab('Timepoint') + ylab('MCD') + ylim(0.5, 0.66) + theme_classic() + theme(text=element_text(family="Times New Roman",face="bold",size = 14),axis.title.x = element_text(margin = margin (t=20,0,0,0)),axis.title.y = element_text(margin = margin(t=0,20,0,0))) # can set limits to whatever makes sense for your depression scores
+```
+
+### Demographic tables
+
+## Baseline - REST - MDD vs HC
+```{r TDC vs ASD demographics}
+
+MDD_MCD_clin_df <- merge(x=THREED_cli_scores,y=MDD_MCD_df,by.x='STUDY_ID',by.y='subid',all.y = TRUE)
+MDD_MCD_clin_df$tx_group[1:252] <- 1
+MDD_MCD_clin_df$`HRSD Final` <- as.numeric(MDD_MCD_clin_df$`HRSD Final`)
+colnames(MDD_MCD_clin_df)[26] <- "HRSD_Final"
+
+df_fMRI_baseline$prim_dx <- 
+  factor(df_fMRI_baseline$prim_dx, 
+         levels=c(0,1),
+         labels=c("TDC", # Reference
+                  "ASD"))
+#df_fMRI_baseline$prim_dx <- "Group"
+
+df_fMRI_baseline$sex <- 
+  factor(df_fMRI_baseline$sex, levels=c(0,1),
+         labels=c("Female", 
+                  "Male"))
+label(df_fMRI_baseline$sex) <- "Sex"
+
+# Psychotropic medication
+df_fMRI_baseline$med <- 
+  factor(df_fMRI_baseline$med, levels=c(0,1),
+         labels=c("No", 
+                  "Yes"))
+label(df_fMRI_baseline$med) <- "Psychotropic Medication"
+
+# Comorbidity on MINI
+df_fMRI_baseline$pos_MINIdx <- 
+  factor(df_fMRI_baseline$pos_MINIdx, levels=c(0,1),
+         labels=c("No", 
+                  "Yes"))
+label(df_fMRI_baseline$pos_MINIdx) <- "Comorbidity on MINI"
+
+label(df_fMRI_baseline$age) <- "Age"
+label(df_fMRI_baseline$years_ed) <- "Years of Education"
+label(df_fMRI_baseline$inclu_iq) <- "IQ - General Abilities Index"
+label(df_fMRI_baseline$brief_meta1) <- "BRIEF Metacognition Index"
+label(df_fMRI_baseline$brief_global1) <- "BRIEF Global Composite"
+label(df_fMRI_baseline$adapt_std) <- "Adaptive Functioning Composite"
+
+# detailing how I want the continuous variables formatted (i.e., with 3 digits, and only showing mean (SD))
+my.render.cont <- function(x) {
+    with(stats.apply.rounding(stats.default(x), digits=3), c("",
+        "Mean (SD)"=sprintf("%s (&plusmn; %s)", MEAN, SD)))
+}
+
+# detailing how I want the categorical variables formatted (i.e., with a count, and showing percentages)
+my.render.cat <- function(x) {
+    c("", sapply(stats.default(x), function(y) with(y,
+        sprintf("%d (%0.0f %%)", FREQ, PCT))))
+}
+
+demographic_table_TDC_ASD <- table1(~age + sex + med + pos_MINIdx + years_ed + inclu_iq + brief_meta1 + brief_global1 + adapt_std | prim_dx, data=df_fMRI_baseline, overall = FALSE, render.continuous=my.render.cont, render.categorical=my.render.cat)
+demographic_table_TDC_ASD
+
+demographic_table_TDC_ASD_with_medians <- table1(~age + sex + med + pos_MINIdx + years_ed + inclu_iq + brief_meta1 + brief_global1 + adapt_std | prim_dx, data=df_fMRI_baseline, overall = FALSE)
+demographic_table_TDC_ASD_with_medians
+```
+
+
+```{r}
+# MDD group separately
+
+# PAPER - table
+MDD_MCD_clin_df$tx_group <- 
+  factor(MDD_MCD_clin_df$tx_group, 
+         levels=c(1),
+         labels=c("MDD" # Reference
+                  ))
+label(MDD_MCD_clin_df$tx_group) <- "MDD Group"
+
+# Gender
+MDD_MCD_clin_df$GENDER <- 
+  factor(MDD_MCD_clin_df$GENDER, levels=c(1,2),
+         labels=c("Male", 
+                  "Female"))
+label(MDD_MCD_clin_df$GENDER) <- "Sex"
+
+# Any Anxiety
+
+MDD_MCD_clin_df$ANY_ANXIETY <- 
+  factor(MDD_MCD_clin_df$ANY_ANXIETY, levels=c(0,1),
+         labels=c("No", 
+                  "Yes"))
+label(MDD_MCD_clin_df$ANY_ANXIETY) <- "Anxiety"
+
+# Psychotherapy
+MDD_MCD_clin_df$PSYCHOTHER <- 
+  factor(MDD_MCD_clin_df$PSYCHOTHER, levels=c(0,1),
+         labels=c("No", 
+                  "Yes"))
+label(MDD_MCD_clin_df$PSYCHOTHER) <- "Psychotherapy"
+
+# Antidepressant medication
+MDD_MCD_clin_df$ANTIDEP <- 
+  factor(MDD_MCD_clin_df$ANTIDEP, levels=c(0,1),
+         labels=c("No", 
+                  "Yes"))
+label(MDD_MCD_clin_df$ANTIDEP) <- "Antidepressant Medication"
+
+# Baseline HAM-D 
+
+
+label(MDD_MCD_clin_df$AGE) <- "Age"
+label(MDD_MCD_clin_df$YRS_EDUC) <- "Years of Education"
+label(MDD_MCD_clin_df$EPISODE_LX) <- "Episode length in month"
+label(MDD_MCD_clin_df$HRSD_T0) <- "Baseline HDRS"
+label(MDD_MCD_clin_df$HRSD_Final) <- "Post treatment HRDS"
+
+my.render.cont <- function(x) {
+    with(stats.apply.rounding(stats.default(x), digits=3), c("",
+        "Mean (SD)"=sprintf("%s (&plusmn; %s)", MEAN, SD)))
+}
+
+# detailing how I want the categorical variables formatted (i.e., with a count, and showing percentages)
+my.render.cat <- function(x) {
+    c("", sapply(stats.default(x), function(y) with(y,
+        sprintf("%d (%0.0f %%)", FREQ, PCT))))
+}
+
+demographic_table_MDD <- table1(~AGE + GENDER + ANY_ANXIETY + YRS_EDUC + EPISODE_LX + PSYCHOTHER + ANTIDEP + HRSD_T0 + HRSD_Final | tx_group, data=MDD_MCD_clin_df, overall = FALSE, render.continuous=my.render.cont, render.categorical=my.render.cat)
+demographic_table_MDD
+
+demographic_table_MDD_with_medians <- table1(~AGE + GENDER + ANY_ANXIETY + YRS_EDUC + EPISODE_LX + PSYCHOTHER + ANTIDEP + HRSD_T0 + HRSD_Final | tx_group, data=MDD_MCD_clin_df, overall = FALSE)
+demographic_table_MDD_with_medians
+t1flex(demographic_table_MDD_with_medians) %>% save_as_docx( path = "D:/Thesis/3D/table1.docx")
+
+flex_obj <- t1flex(demographic_table_MDD_with_medians)
+flex_obj
+flex_obj <- add_footer_lines(flex_obj,"HDRS - Hamilton Depression Rating Scale")
+flex_obj <- flex_obj %>%
+  color(i=23, color = "orange") %>%
+  color(i=26, color = "orange") %>% fontsize(i=1:27,j=1:2,size=12,part="body")
+#flex_obj <- autofit(flex_obj)
+flex_obj %>% save_as_docx( path = "D:/Thesis/3D/table1_v1.docx")
+save_as_image(flex_obj, path = "D:/Thesis/3D/table1_v1.png", webshot = "webshot2")
+#ft <- set_table_properties(flex_obj, layout = "autofit", width = .5)
+#ft_v <- autofit(ft, add_w = 0, add_h=0)
+save_as_pptx(
+  "my table 1" = flex_obj,
+  path = "D:/Thesis/3D/test.pptx")
+```
+
+```{r Table with stats - createtableone}
+# which variables are normally distributed and which ones are not?
+
+MDD_MCD_clin_df %>%
+  shapiro_test(AGE, YRS_EDUC, EPISODE_LX, HRSD_T0, HRSD_Final)
+
+# None are normally distributed
+myVars <- c("AGE", "YRS_EDUC", "EPISODE_LX", "HRSD_T0", "HRSD_Final")
+catVars <- c("GENDER", "ANTIDEP", "ANY_ANXIETY", "PSYCHOTHER")
+
+## Create a TableOne matrix file that inludes p values
+
+# same table but with NONPARAMETRIC statistics (Mann-Whitney U test - even though labelled Kruskall)
+# testNonNormal: A function used to perform the nonparametric tests. The default is kruskal.test (Kruskal-Wallis Rank Sum Test). This is equivalent of the wilcox.test (Man-Whitney U test) when there are only two groups. 
+
+MDD_stats_some_nonnormal <- print(CreateTableOne(vars = myVars, factorVars = catVars, data = MDD_MCD_clin_df), nonnormal=c("AGE", "YRS_EDUC", "EPISODE_LX", "HRSD_T0", "HRSD_Final"), exact=c("GENDER", "ANTIDEP", "ANY_ANXIETY", "PSYCHOTHER"),  showAllLevels = FALSE, varLabels = TRUE, testNonNormal = kruskal.test, testExact = fisher.test, formatOptions = list(big.mark = ","))
+```
+
+
