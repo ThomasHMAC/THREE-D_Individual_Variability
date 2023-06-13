@@ -4,7 +4,8 @@ Individual variability analysis using THREE-D dataset
 ## Dependencies:
 ```R-studio
 connectome-workbench/1.3.2 
-ciftify/2.3.3```
+ciftify/2.3.3
+```
 
 ## Requirements:
 1. Functional connectivity map converted to text file using connectome-workbench (i.e wb_command -cifti-convert -to-text)
