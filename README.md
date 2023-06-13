@@ -11,9 +11,9 @@ ciftify/2.3.3
 1. Functional connectivity map converted to text file using connectome-workbench (i.e wb_command -cifti-convert -to-text)
 
 ## Pipelines:
-3D_analysis.Rmd - perform calculation of Mean Correlational Distance (MCD);
+``3D_analysis.Rmd``` - perform calculation of Mean Correlational Distance (MCD);
                 - statistical analysis (i.e linear mix model)
                 - plotting
                 - Tables
 
-ind_var_figure.R - plot pairwise correlational distance matrix
+```ind_var_figure.R``` - plot pairwise correlational distance matrix
